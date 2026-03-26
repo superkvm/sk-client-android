@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <declare-styleable name="CircleProgressView">
+        
+        <attr name="outsideCircleBgColor" format="color|reference"/>
+        
+        <attr name="progressArcBgColor" format="color|reference"/>
+        
+        <attr name="insideCircleBgColor" format="color|reference"/>
+        <attr name="insideCircleTouchedBgColor" format="color|reference"/>
+        
+        <attr name="insideRectangleBgColor" format="color|reference"/>
+
+        
+        <attr name="tipTextColor" format="color|reference"/>
+        
+        <attr name="tipTextSize" format="dimension"/>
+    </declare-styleable>
+</resources>

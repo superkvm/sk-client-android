@@ -1,0 +1,126 @@
+plugins {
+    id 'com.android.application'
+    id 'kotlin-android'
+}
+
+def appVersionFromFile = {
+    def versionFile = project.file("version")
+    if (!versionFile.exists()) {
+        return "0.0.0"
+    }
+    def text = versionFile.getText('UTF-8').trim()
+    return text ?: "0.0.0"
+}
+
+def gitShort4 = {
+    try {
+        def stdout = new ByteArrayOutputStream()
+        exec {
+            commandLine 'git', 'rev-parse', '--short=4', 'HEAD'
+            standardOutput = stdout
+        }
+        def text = stdout.toString('UTF-8').trim()
+        return text ?: "0000"
+    } catch (Exception ignored) {
+        return "0000"
+    }
+}
+
+def buildDateTime = {
+    return new Date().format("yyyyMMddHHmmss", TimeZone.getTimeZone("Asia/Shanghai"))
+}
+
+android {
+    def keystoreProperties = new Properties()
+    def keystorePropertiesFile = rootProject.file('local.properties')
+    if (keystorePropertiesFile.exists()) {
+        keystoreProperties.load(new FileInputStream(keystorePropertiesFile))
+    }
+
+    def releaseKeystorePath = keystoreProperties.getProperty('RELEASE_KEYSTORE_PATH')
+    def releaseKeyAlias = keystoreProperties.getProperty('RELEASE_KEY_ALIAS')
+    def releaseKeystorePassword = keystoreProperties.getProperty('RELEASE_KEYSTORE_PASSWORD')
+    def releaseKeyPassword = keystoreProperties.getProperty('RELEASE_KEY_PASSWORD')
+
+    
+    namespace 'com.superkvm.kvm'
+    compileSdkVersion rootProject.ext.versionCompiler
+    defaultConfig {
+        applicationId "com.superkvm.kvm"
+        minSdkVersion rootProject.ext.minSdkVersion
+        targetSdkVersion rootProject.ext.versionTarget
+        versionCode rootProject.ext.versionCode
+        versionName rootProject.ext.versionNameString
+        buildConfigField "String", "APP_VERSION_FROM_FILE", "\"${appVersionFromFile()}\""
+        buildConfigField "String", "GIT_SHORT4", "\"${gitShort4()}\""
+        buildConfigField "String", "BUILD_DATETIME", "\"${buildDateTime()}\""
+
+        multiDexEnabled true
+        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+
+        ndk{
+            abiFilters 'armeabi-v7a','arm64-v8a'
+        }
+    }
+    signingConfigs {
+        release {
+            if (releaseKeystorePath) {
+                storeFile file(releaseKeystorePath)
+                storePassword releaseKeystorePassword
+                keyAlias releaseKeyAlias
+                keyPassword releaseKeyPassword
+            }
+        }
+    }
+
+    buildTypes {
+        release {
+            signingConfig signingConfigs.release
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility rootProject.ext.javaSourceCompatibility
+        targetCompatibility rootProject.ext.javaTargetCompatibility
+    }
+
+    kotlinOptions {
+        jvmTarget = '1.8'
+    }
+
+    buildFeatures {
+        buildConfig true
+        viewBinding true
+    }
+
+    
+    
+    ndkVersion rootProject.ext.ndkVersion
+}
+
+dependencies {
+    implementation fileTree(include: ['*.jar'], dir: 'libs')
+    implementation "androidx.appcompat:appcompat:${androidXVersion}"
+    implementation 'androidx.multidex:multidex:2.0.1'
+    implementation "androidx.core:core-ktx:${kotlinCoreVersion}"
+    implementation "com.google.android.material:material:${materialVersion}"
+    implementation "androidx.constraintlayout:constraintlayout:${constraintlayoutVersion}"
+
+    implementation project(':libausbc')
+
+    implementation 'com.github.mik3y:usb-serial-for-android:3.8.0'
+
+    
+
+    androidTestImplementation 'androidx.test.ext:junit:1.1.5'
+    androidTestImplementation 'androidx.test:runner:1.5.2'
+    androidTestImplementation 'androidx.test:core:1.5.0'
+    androidTestImplementation 'junit:junit:4.13.2'
+}
+
+
+tasks.register('testClasses') {
+    dependsOn('compileDebugUnitTestSources')
+}

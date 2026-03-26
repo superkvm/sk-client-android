@@ -1,0 +1,88 @@
+
+package com.superkvm.ausbc.widget
+
+import android.content.Context
+import android.content.res.Configuration
+import android.util.AttributeSet
+import android.view.Surface
+import android.view.SurfaceView
+import com.superkvm.ausbc.utils.Logger
+import kotlin.math.abs
+
+
+class AspectRatioSurfaceView: SurfaceView, IAspectRatio {
+
+    private var mAspectRatio = -1.0
+
+    constructor(context: Context) : this(context, null)
+    constructor(context: Context, attributeSet: AttributeSet?) : this(context, attributeSet, 0)
+    constructor(context: Context, attributeSet: AttributeSet?, defStyleAttr: Int) : super(context, attributeSet, defStyleAttr)
+
+    override fun setAspectRatio(width: Int, height: Int) {
+        post {
+
+
+
+
+
+
+            setAspectRatio(width.toDouble() / height)
+        }
+    }
+
+    override fun getSurfaceWidth(): Int  = measuredWidth
+
+    override fun getSurfaceHeight(): Int  = measuredHeight
+
+    override fun getSurface(): Surface = holder.surface
+
+    override fun postUITask(task: () -> Unit) {
+        post {
+            task()
+        }
+    }
+
+    private fun setAspectRatio(aspectRatio: Double) {
+        if (aspectRatio < 0 || mAspectRatio == aspectRatio) {
+            return
+        }
+        mAspectRatio = aspectRatio
+        Logger.i(TAG, "AspectRatio = $mAspectRatio")
+        requestLayout()
+    }
+
+    override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
+        var initialWidth = MeasureSpec.getSize(widthMeasureSpec)
+        var initialHeight = MeasureSpec.getSize(heightMeasureSpec)
+        val horizontalPadding = paddingLeft + paddingRight
+        val verticalPadding = paddingTop + paddingBottom
+        initialWidth -= horizontalPadding
+        initialHeight -= verticalPadding
+        
+        
+        val viewAspectRatio = initialWidth.toDouble() / initialHeight
+        val diff = mAspectRatio / viewAspectRatio - 1
+        var wMeasureSpec = widthMeasureSpec
+        var hMeasureSpec = heightMeasureSpec
+        if (mAspectRatio > 0 && abs(diff) > 0.01) {
+            
+            
+            if (diff > 0) {
+                initialHeight = (initialWidth / mAspectRatio).toInt()
+            } else {
+                initialWidth = (initialHeight * mAspectRatio).toInt()
+            }
+            
+            
+            initialWidth += horizontalPadding
+            initialHeight += verticalPadding
+            wMeasureSpec = MeasureSpec.makeMeasureSpec(initialWidth, MeasureSpec.EXACTLY)
+            hMeasureSpec = MeasureSpec.makeMeasureSpec(initialHeight, MeasureSpec.EXACTLY)
+        }
+        super.onMeasure(wMeasureSpec, hMeasureSpec)
+    }
+
+    companion object {
+        private const val TAG = "AspectRatioTextureView"
+    }
+}

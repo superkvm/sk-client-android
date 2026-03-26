@@ -1,0 +1,477 @@
+
+
+#include "jinclude.h"
+#include "jdmainct.h"
+#include "jdcoefct.h"
+#include "jdsample.h"
+#include "jmemsys.h"
+
+
+LOCAL(boolean) output_pass_setup (j_decompress_ptr cinfo);
+
+
+
+
+GLOBAL(boolean)
+jpeg_start_decompress (j_decompress_ptr cinfo)
+{
+  if (cinfo->global_state == DSTATE_READY) {
+    
+    jinit_master_decompress(cinfo);
+    if (cinfo->buffered_image) {
+      
+      cinfo->global_state = DSTATE_BUFIMAGE;
+      return TRUE;
+    }
+    cinfo->global_state = DSTATE_PRELOAD;
+  }
+  if (cinfo->global_state == DSTATE_PRELOAD) {
+    
+    if (cinfo->inputctl->has_multiple_scans) {
+#ifdef D_MULTISCAN_FILES_SUPPORTED
+      for (;;) {
+        int retcode;
+        
+        if (cinfo->progress != NULL)
+          (*cinfo->progress->progress_monitor) ((j_common_ptr) cinfo);
+        
+        retcode = (*cinfo->inputctl->consume_input) (cinfo);
+        if (retcode == JPEG_SUSPENDED)
+          return FALSE;
+        if (retcode == JPEG_REACHED_EOI)
+          break;
+        
+        if (cinfo->progress != NULL &&
+            (retcode == JPEG_ROW_COMPLETED || retcode == JPEG_REACHED_SOS)) {
+          if (++cinfo->progress->pass_counter >= cinfo->progress->pass_limit) {
+            
+            cinfo->progress->pass_limit += (long) cinfo->total_iMCU_rows;
+          }
+        }
+      }
+#else
+      ERREXIT(cinfo, JERR_NOT_COMPILED);
+#endif 
+    }
+    cinfo->output_scan_number = cinfo->input_scan_number;
+  } else if (cinfo->global_state != DSTATE_PRESCAN)
+    ERREXIT1(cinfo, JERR_BAD_STATE, cinfo->global_state);
+  
+  return output_pass_setup(cinfo);
+}
+
+
+
+
+LOCAL(boolean)
+output_pass_setup (j_decompress_ptr cinfo)
+{
+  if (cinfo->global_state != DSTATE_PRESCAN) {
+    
+    (*cinfo->master->prepare_for_output_pass) (cinfo);
+    cinfo->output_scanline = 0;
+    cinfo->global_state = DSTATE_PRESCAN;
+  }
+  
+  while (cinfo->master->is_dummy_pass) {
+#ifdef QUANT_2PASS_SUPPORTED
+    
+    while (cinfo->output_scanline < cinfo->output_height) {
+      JDIMENSION last_scanline;
+      
+      if (cinfo->progress != NULL) {
+        cinfo->progress->pass_counter = (long) cinfo->output_scanline;
+        cinfo->progress->pass_limit = (long) cinfo->output_height;
+        (*cinfo->progress->progress_monitor) ((j_common_ptr) cinfo);
+      }
+      
+      last_scanline = cinfo->output_scanline;
+      (*cinfo->main->process_data) (cinfo, (JSAMPARRAY) NULL,
+                                    &cinfo->output_scanline, (JDIMENSION) 0);
+      if (cinfo->output_scanline == last_scanline)
+        return FALSE;           
+    }
+    
+    (*cinfo->master->finish_output_pass) (cinfo);
+    (*cinfo->master->prepare_for_output_pass) (cinfo);
+    cinfo->output_scanline = 0;
+#else
+    ERREXIT(cinfo, JERR_NOT_COMPILED);
+#endif 
+  }
+  
+  cinfo->global_state = cinfo->raw_data_out ? DSTATE_RAW_OK : DSTATE_SCANNING;
+  return TRUE;
+}
+
+
+
+
+GLOBAL(void)
+jpeg_crop_scanline (j_decompress_ptr cinfo, JDIMENSION *xoffset,
+                    JDIMENSION *width)
+{
+  int ci, align, orig_downsampled_width;
+  JDIMENSION input_xoffset;
+  boolean reinit_upsampler = FALSE;
+  jpeg_component_info *compptr;
+
+  if (cinfo->global_state != DSTATE_SCANNING || cinfo->output_scanline != 0)
+    ERREXIT1(cinfo, JERR_BAD_STATE, cinfo->global_state);
+
+  if (!xoffset || !width)
+    ERREXIT(cinfo, JERR_BAD_CROP_SPEC);
+
+  
+  if (*width == 0 || *xoffset + *width > cinfo->output_width)
+    ERREXIT(cinfo, JERR_WIDTH_OVERFLOW);
+
+  
+  if (*width == cinfo->output_width)
+    return;
+
+  
+  align = cinfo->_min_DCT_scaled_size * cinfo->max_h_samp_factor;
+
+  
+  input_xoffset = *xoffset;
+  *xoffset = (input_xoffset / align) * align;
+
+  
+  *width = *width + input_xoffset - *xoffset;
+  cinfo->output_width = *width;
+
+  
+  cinfo->master->first_iMCU_col =
+    (JDIMENSION) (long) (*xoffset) / (long) align;
+  cinfo->master->last_iMCU_col =
+    (JDIMENSION) jdiv_round_up((long) (*xoffset + cinfo->output_width),
+                               (long) align) - 1;
+
+  for (ci = 0, compptr = cinfo->comp_info; ci < cinfo->num_components;
+       ci++, compptr++) {
+    
+    orig_downsampled_width = compptr->downsampled_width;
+    compptr->downsampled_width =
+      (JDIMENSION) jdiv_round_up((long) (cinfo->output_width *
+                                         compptr->h_samp_factor),
+                                 (long) cinfo->max_h_samp_factor);
+    if (compptr->downsampled_width < 2 && orig_downsampled_width >= 2)
+      reinit_upsampler = TRUE;
+
+    
+    cinfo->master->first_MCU_col[ci] =
+      (JDIMENSION) (long) (*xoffset * compptr->h_samp_factor) /
+                   (long) align;
+    cinfo->master->last_MCU_col[ci] =
+      (JDIMENSION) jdiv_round_up((long) ((*xoffset + cinfo->output_width) *
+                                         compptr->h_samp_factor),
+                                 (long) align) - 1;
+  }
+
+  if (reinit_upsampler) {
+    cinfo->master->jinit_upsampler_no_alloc = TRUE;
+    jinit_upsampler(cinfo);
+    cinfo->master->jinit_upsampler_no_alloc = FALSE;
+  }
+}
+
+
+
+
+GLOBAL(JDIMENSION)
+jpeg_read_scanlines (j_decompress_ptr cinfo, JSAMPARRAY scanlines,
+                     JDIMENSION max_lines)
+{
+  JDIMENSION row_ctr;
+
+  if (cinfo->global_state != DSTATE_SCANNING)
+    ERREXIT1(cinfo, JERR_BAD_STATE, cinfo->global_state);
+  if (cinfo->output_scanline >= cinfo->output_height) {
+    WARNMS(cinfo, JWRN_TOO_MUCH_DATA);
+    return 0;
+  }
+
+  
+  if (cinfo->progress != NULL) {
+    cinfo->progress->pass_counter = (long) cinfo->output_scanline;
+    cinfo->progress->pass_limit = (long) cinfo->output_height;
+    (*cinfo->progress->progress_monitor) ((j_common_ptr) cinfo);
+  }
+
+  
+  row_ctr = 0;
+  (*cinfo->main->process_data) (cinfo, scanlines, &row_ctr, max_lines);
+  cinfo->output_scanline += row_ctr;
+  return row_ctr;
+}
+
+
+
+LOCAL(void)
+noop_convert (j_decompress_ptr cinfo, JSAMPIMAGE input_buf,
+              JDIMENSION input_row, JSAMPARRAY output_buf, int num_rows)
+{
+}
+
+
+
+
+LOCAL(void)
+read_and_discard_scanlines (j_decompress_ptr cinfo, JDIMENSION num_lines)
+{
+  JDIMENSION n;
+  void (*color_convert) (j_decompress_ptr cinfo, JSAMPIMAGE input_buf,
+                         JDIMENSION input_row, JSAMPARRAY output_buf,
+                         int num_rows);
+
+  color_convert = cinfo->cconvert->color_convert;
+  cinfo->cconvert->color_convert = noop_convert;
+
+  for (n = 0; n < num_lines; n++)
+    jpeg_read_scanlines(cinfo, NULL, 1);
+
+  cinfo->cconvert->color_convert = color_convert;
+}
+
+
+
+
+LOCAL(void)
+increment_simple_rowgroup_ctr (j_decompress_ptr cinfo, JDIMENSION rows)
+{
+  JDIMENSION rows_left;
+  my_main_ptr main_ptr = (my_main_ptr) cinfo->main;
+
+  
+  main_ptr->rowgroup_ctr += rows / cinfo->max_v_samp_factor;
+
+  
+  rows_left = rows % cinfo->max_v_samp_factor;
+  cinfo->output_scanline += rows - rows_left;
+
+  read_and_discard_scanlines(cinfo, rows_left);
+}
+
+
+
+GLOBAL(JDIMENSION)
+jpeg_skip_scanlines (j_decompress_ptr cinfo, JDIMENSION num_lines)
+{
+  my_main_ptr main_ptr = (my_main_ptr) cinfo->main;
+  my_coef_ptr coef = (my_coef_ptr) cinfo->coef;
+  my_upsample_ptr upsample = (my_upsample_ptr) cinfo->upsample;
+  JDIMENSION i, x;
+  int y;
+  JDIMENSION lines_per_iMCU_row, lines_left_in_iMCU_row, lines_after_iMCU_row;
+  JDIMENSION lines_to_skip, lines_to_read;
+
+  if (cinfo->global_state != DSTATE_SCANNING)
+    ERREXIT1(cinfo, JERR_BAD_STATE, cinfo->global_state);
+
+  
+  if (cinfo->output_scanline + num_lines >= cinfo->output_height) {
+    cinfo->output_scanline = cinfo->output_height;
+    return cinfo->output_height - cinfo->output_scanline;
+  }
+
+  if (num_lines == 0)
+    return 0;
+
+  lines_per_iMCU_row = cinfo->_min_DCT_scaled_size * cinfo->max_v_samp_factor;
+  lines_left_in_iMCU_row =
+    (lines_per_iMCU_row - (cinfo->output_scanline % lines_per_iMCU_row)) %
+    lines_per_iMCU_row;
+  lines_after_iMCU_row = num_lines - lines_left_in_iMCU_row;
+
+  
+  if (cinfo->upsample->need_context_rows) {
+    
+    if ((num_lines < lines_left_in_iMCU_row + 1) ||
+        (lines_left_in_iMCU_row <= 1 && main_ptr->buffer_full &&
+         lines_after_iMCU_row < lines_per_iMCU_row + 1)) {
+      read_and_discard_scanlines(cinfo, num_lines);
+      return num_lines;
+    }
+
+    
+    if (lines_left_in_iMCU_row <= 1 && main_ptr->buffer_full) {
+      cinfo->output_scanline += lines_left_in_iMCU_row + lines_per_iMCU_row;
+      lines_after_iMCU_row -= lines_per_iMCU_row;
+    } else {
+      cinfo->output_scanline += lines_left_in_iMCU_row;
+    }
+
+    
+    if (main_ptr->iMCU_row_ctr == 0 ||
+        (main_ptr->iMCU_row_ctr == 1 && lines_left_in_iMCU_row > 2))
+      set_wraparound_pointers(cinfo);
+    main_ptr->buffer_full = FALSE;
+    main_ptr->rowgroup_ctr = 0;
+    main_ptr->context_state = CTX_PREPARE_FOR_IMCU;
+    upsample->next_row_out = cinfo->max_v_samp_factor;
+    upsample->rows_to_go = cinfo->output_height - cinfo->output_scanline;
+  }
+
+  
+  else {
+    if (num_lines < lines_left_in_iMCU_row) {
+      increment_simple_rowgroup_ctr(cinfo, num_lines);
+      return num_lines;
+    } else {
+      cinfo->output_scanline += lines_left_in_iMCU_row;
+      main_ptr->buffer_full = FALSE;
+      main_ptr->rowgroup_ctr = 0;
+      upsample->next_row_out = cinfo->max_v_samp_factor;
+      upsample->rows_to_go = cinfo->output_height - cinfo->output_scanline;
+    }
+  }
+
+  
+  if (cinfo->upsample->need_context_rows)
+    lines_to_skip = ((lines_after_iMCU_row - 1) / lines_per_iMCU_row) *
+                    lines_per_iMCU_row;
+  else
+    lines_to_skip = (lines_after_iMCU_row / lines_per_iMCU_row) *
+                    lines_per_iMCU_row;
+  
+  lines_to_read = lines_after_iMCU_row - lines_to_skip;
+
+  
+  if (cinfo->inputctl->has_multiple_scans) {
+    if (cinfo->upsample->need_context_rows) {
+      cinfo->output_scanline += lines_to_skip;
+      cinfo->output_iMCU_row += lines_to_skip / lines_per_iMCU_row;
+      main_ptr->iMCU_row_ctr += lines_after_iMCU_row / lines_per_iMCU_row;
+      
+      read_and_discard_scanlines(cinfo, lines_to_read);
+    } else {
+      cinfo->output_scanline += lines_to_skip;
+      cinfo->output_iMCU_row += lines_to_skip / lines_per_iMCU_row;
+      increment_simple_rowgroup_ctr(cinfo, lines_to_read);
+    }
+    upsample->rows_to_go = cinfo->output_height - cinfo->output_scanline;
+    return num_lines;
+  }
+
+  
+  for (i = 0; i < lines_to_skip; i += lines_per_iMCU_row) {
+    for (y = 0; y < coef->MCU_rows_per_iMCU_row; y++) {
+      for (x = 0; x < cinfo->MCUs_per_row; x++) {
+        
+        (*cinfo->entropy->decode_mcu) (cinfo, NULL);
+      }
+    }
+    cinfo->input_iMCU_row++;
+    cinfo->output_iMCU_row++;
+    if (cinfo->input_iMCU_row < cinfo->total_iMCU_rows)
+      start_iMCU_row(cinfo);
+    else
+      (*cinfo->inputctl->finish_input_pass) (cinfo);
+  }
+  cinfo->output_scanline += lines_to_skip;
+
+  if (cinfo->upsample->need_context_rows) {
+    
+    main_ptr->iMCU_row_ctr += lines_to_skip / lines_per_iMCU_row;
+
+    
+    read_and_discard_scanlines(cinfo, lines_to_read);
+  } else {
+    increment_simple_rowgroup_ctr(cinfo, lines_to_read);
+  }
+
+  
+  upsample->rows_to_go = cinfo->output_height - cinfo->output_scanline;
+
+  
+  return num_lines;
+}
+
+
+
+GLOBAL(JDIMENSION)
+jpeg_read_raw_data (j_decompress_ptr cinfo, JSAMPIMAGE data,
+                    JDIMENSION max_lines)
+{
+  JDIMENSION lines_per_iMCU_row;
+
+  if (cinfo->global_state != DSTATE_RAW_OK)
+    ERREXIT1(cinfo, JERR_BAD_STATE, cinfo->global_state);
+  if (cinfo->output_scanline >= cinfo->output_height) {
+    WARNMS(cinfo, JWRN_TOO_MUCH_DATA);
+    return 0;
+  }
+
+  
+  if (cinfo->progress != NULL) {
+    cinfo->progress->pass_counter = (long) cinfo->output_scanline;
+    cinfo->progress->pass_limit = (long) cinfo->output_height;
+    (*cinfo->progress->progress_monitor) ((j_common_ptr) cinfo);
+  }
+
+  
+  lines_per_iMCU_row = cinfo->max_v_samp_factor * cinfo->_min_DCT_scaled_size;
+  if (max_lines < lines_per_iMCU_row)
+    ERREXIT(cinfo, JERR_BUFFER_SIZE);
+
+  
+  if (! (*cinfo->coef->decompress_data) (cinfo, data))
+    return 0;                   
+
+  
+  cinfo->output_scanline += lines_per_iMCU_row;
+  return lines_per_iMCU_row;
+}
+
+
+
+
+#ifdef D_MULTISCAN_FILES_SUPPORTED
+
+
+
+GLOBAL(boolean)
+jpeg_start_output (j_decompress_ptr cinfo, int scan_number)
+{
+  if (cinfo->global_state != DSTATE_BUFIMAGE &&
+      cinfo->global_state != DSTATE_PRESCAN)
+    ERREXIT1(cinfo, JERR_BAD_STATE, cinfo->global_state);
+  
+  if (scan_number <= 0)
+    scan_number = 1;
+  if (cinfo->inputctl->eoi_reached &&
+      scan_number > cinfo->input_scan_number)
+    scan_number = cinfo->input_scan_number;
+  cinfo->output_scan_number = scan_number;
+  
+  return output_pass_setup(cinfo);
+}
+
+
+
+
+GLOBAL(boolean)
+jpeg_finish_output (j_decompress_ptr cinfo)
+{
+  if ((cinfo->global_state == DSTATE_SCANNING ||
+       cinfo->global_state == DSTATE_RAW_OK) && cinfo->buffered_image) {
+    
+    
+    (*cinfo->master->finish_output_pass) (cinfo);
+    cinfo->global_state = DSTATE_BUFPOST;
+  } else if (cinfo->global_state != DSTATE_BUFPOST) {
+    
+    ERREXIT1(cinfo, JERR_BAD_STATE, cinfo->global_state);
+  }
+  
+  while (cinfo->input_scan_number <= cinfo->output_scan_number &&
+         ! cinfo->inputctl->eoi_reached) {
+    if ((*cinfo->inputctl->consume_input) (cinfo) == JPEG_SUSPENDED)
+      return FALSE;             
+  }
+  cinfo->global_state = DSTATE_BUFIMAGE;
+  return TRUE;
+}
+
+#endif 

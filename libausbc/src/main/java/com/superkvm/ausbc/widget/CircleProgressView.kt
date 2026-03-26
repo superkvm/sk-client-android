@@ -1,0 +1,343 @@
+
+package com.superkvm.ausbc.widget
+
+import android.annotation.SuppressLint
+import android.content.Context
+import android.content.res.TypedArray
+import android.graphics.*
+import android.util.AttributeSet
+import android.view.MotionEvent
+import android.view.View
+import com.superkvm.ausbc.R
+
+import java.text.DecimalFormat
+
+
+class CircleProgressView : View {
+    private var isRecordVideo: Boolean = false
+    private var mPaint: Paint? = null
+    private var mWidth = 0
+    private var mHeight = 0
+    private var circleX = 0
+    private var circleY = 0
+    private var radius = 0
+    private var state = 0
+    private var mSweepAngle = 1
+    private var isOddNumber = true
+    private var outsideCircleBgColor = 0
+    private var progressArcBgColor = 0
+    private var insideCircleBgColor = 0
+    private var insideCircleTouchedBgColor = 0
+    private var insideRectangleBgColor = 0
+    private var tipTextSize = 0f
+    private var tipTextColor = 0
+
+    
+    private var progress = 0
+    private var totalSize = 0
+    private var isShowTextTip = false
+    private var isTouched = false
+
+    
+    private var listener: OnViewClickListener? = null
+    private var isDisabled = false
+
+    constructor(context: Context?) : super(context)
+
+    interface OnViewClickListener {
+        fun onViewClick()
+    }
+
+    
+    fun setOnViewClickListener(listener: OnViewClickListener?) {
+        this.listener = listener
+    }
+
+    constructor(context: Context, attrs: AttributeSet?) : super(context, attrs) {
+        
+        val ta: TypedArray = context.obtainStyledAttributes(attrs, R.styleable.CircleProgressView)
+        outsideCircleBgColor = ta.getColor(
+            R.styleable.CircleProgressView_outsideCircleBgColor,
+            resources.getColor(R.color.colorWhite)
+        )
+        progressArcBgColor = ta.getColor(
+            R.styleable.CircleProgressView_progressArcBgColor,
+            resources.getColor(R.color.colorGray)
+        )
+        insideCircleBgColor = ta.getColor(
+            R.styleable.CircleProgressView_insideCircleBgColor,
+            resources.getColor(R.color.colorRed)
+        )
+        insideCircleTouchedBgColor = ta.getColor(
+            R.styleable.CircleProgressView_insideCircleTouchedBgColor,
+            resources.getColor(R.color.colorDeepRed)
+        )
+        insideRectangleBgColor = ta.getColor(
+            R.styleable.CircleProgressView_insideRectangleBgColor,
+            resources.getColor(R.color.colorRed)
+        )
+        tipTextColor = ta.getColor(
+            R.styleable.CircleProgressView_tipTextColor,
+            resources.getColor(R.color.colorWhite)
+        )
+        tipTextSize = ta.getDimension(R.styleable.CircleProgressView_tipTextSize, 34F)
+        ta.recycle()
+        mPaint = Paint()
+    }
+
+    fun setConnectState(state: Int) {
+        this.state = state
+        
+        this.invalidate()
+    }
+
+    fun getConnectState(): Int {
+        return state
+    }
+
+    fun setProgressVaule(progress: Int) {
+        this.progress = progress
+        
+        this.invalidate()
+    }
+
+    fun setTotalSize(totalSize: Int) {
+        this.totalSize = totalSize
+    }
+
+    fun setShowTextTipFlag(isShowTextTip: Boolean) {
+        this.isShowTextTip = isShowTextTip
+    }
+
+    @SuppressLint("ClickableViewAccessibility")
+    override fun onTouchEvent(event: MotionEvent): Boolean {
+        if (listener == null || isDisabled()) return super.onTouchEvent(event)
+        when(event.action) {
+            MotionEvent.ACTION_DOWN -> {
+                isTouched = true
+            }
+            MotionEvent.ACTION_UP -> {
+                isTouched = false
+                
+                listener!!.onViewClick()
+            }
+            else -> {}
+        }
+        this.invalidate()
+        return true
+    }
+
+    override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
+        super.onMeasure(widthMeasureSpec, heightMeasureSpec)
+        
+        
+        setMeasuredDimension(measureWidth(widthMeasureSpec), measureHeight(heightMeasureSpec))
+    }
+
+    private fun measureHeight(widthMeasureSpec: Int): Int {
+        var width: Int
+        val specMode: Int = MeasureSpec.getMode(widthMeasureSpec)
+        val specSize: Int = MeasureSpec.getSize(widthMeasureSpec)
+        if (specMode == MeasureSpec.EXACTLY) {
+            
+            width = specSize
+        } else {
+            
+            width = 200
+            
+            if (specMode == MeasureSpec.AT_MOST) {
+                width = width.coerceAtMost(specSize)
+            }
+        }
+        return width
+    }
+
+    private fun measureWidth(heightMeasureSpec: Int): Int {
+        var height: Int
+        val specMode: Int = MeasureSpec.getMode(heightMeasureSpec)
+        val specSize: Int = MeasureSpec.getSize(heightMeasureSpec)
+        if (specMode == MeasureSpec.EXACTLY) {
+            
+            height = specSize
+        } else {
+            
+            height = 200
+            
+            if (specMode == MeasureSpec.AT_MOST) {
+                height = height.coerceAtMost(specSize)
+            }
+        }
+        return height
+    }
+
+    private fun isDisabled(): Boolean {
+        return isDisabled
+    }
+
+    override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
+        super.onSizeChanged(w, h, oldw, oldh)
+        
+        mWidth = width
+        mHeight = height
+        circleX = mWidth / 2
+        circleY = mWidth / 2
+        radius = mWidth / 2
+        
+        state = STATE_UNDONE
+    }
+
+    override fun onDraw(canvas: Canvas) {
+        super.onDraw(canvas)
+        drawOutSideCircle(canvas)
+        if (STATE_DONE == state) {
+            drawInternelRectangle(canvas)
+        } else {
+            if (isTouched) {
+                drawInternalCircle(canvas, insideCircleTouchedBgColor)
+            } else {
+                drawInternalCircle(canvas, insideCircleBgColor)
+            }
+            
+            if (STATE_DOING == state) {
+                drawProgressArc(canvas)
+            }
+        }
+        if (isRecordVideo) {
+            drawRecordVideoCircle(canvas)
+        }
+    }
+
+    private fun drawRecordVideoCircle(canvas: Canvas) {
+        mPaint?.strokeWidth = 2F
+        mPaint?.style = Paint.Style.FILL
+        mPaint?.color = resources.getColor(R.color.colorRed)
+        mPaint?.isAntiAlias = true
+        canvas.drawCircle(
+            circleX.toFloat(),
+            circleY.toFloat(), (radius - radius * 0.75).toFloat(), mPaint!!
+        )
+    }
+
+    private fun drawOutSideCircle(canvas: Canvas) {
+        mPaint?.strokeWidth = 2.5F
+        mPaint?.color = outsideCircleBgColor
+        mPaint?.style = Paint.Style.STROKE
+        mPaint?.isAntiAlias = true
+        canvas.drawColor(Color.TRANSPARENT)
+        canvas.drawCircle(circleX.toFloat(), circleY.toFloat(), radius.toFloat() - 5F, mPaint!!)
+    }
+
+    private fun drawInternalCircle(canvas: Canvas, colorType: Int) {
+        mPaint?.strokeWidth = 2F
+        mPaint?.style = Paint.Style.FILL
+        mPaint?.color = colorType
+        mPaint?.isAntiAlias = true
+        canvas.drawCircle(
+            circleX.toFloat(),
+            circleY.toFloat(), (radius - radius * 0.35).toFloat(), mPaint!!
+        )
+    }
+
+    private fun drawInternelRectangle(canvas: Canvas) {
+        mPaint?.strokeWidth = 2F
+        mPaint?.color = insideRectangleBgColor
+        mPaint?.isAntiAlias = true
+        mPaint?.style = Paint.Style.FILL
+        canvas.drawRect(
+            (mWidth * 0.3).toFloat(),
+            (mWidth * 0.3).toFloat(),
+            (mWidth - mWidth * 0.3).toFloat(),
+            (mWidth - mWidth * 0.3).toFloat(),
+            mPaint!!
+        )
+    }
+
+    private fun drawProgressArc(canvas: Canvas) {
+        mPaint?.strokeWidth = (radius * 0.15).toInt().toFloat()
+        mPaint?.style = Paint.Style.STROKE
+        mPaint?.isAntiAlias = true
+        mPaint?.color = progressArcBgColor
+        if (progress >= 0) {
+            if (totalSize == 0) return
+            canvas.drawArc(
+                RectF(
+                    (radius * 0.08).toFloat(),
+                    (radius * 0.08).toFloat(),
+                    2 * radius - (radius * 0.08).toFloat(),
+                    2 * radius - (radius * 0.08).toFloat()
+                ),
+                180F,
+                ((DecimalFormat("0.00")
+                    .format(progress.toFloat() / totalSize).toFloat() * 360).toInt()).toFloat(),
+                false,
+                mPaint!!
+            )
+            if (isShowTextTip) {
+                drawTextTip(
+                    canvas,
+                    (DecimalFormat("0.00")
+                        .format(progress.toFloat() / totalSize).toFloat() * 100).toString() + " %"
+                )
+            }
+        } else if (progress == NONE) {
+            if (isOddNumber) {
+                canvas.drawArc(
+                    RectF(
+                        (radius * 0.08).toFloat(),
+                        (radius * 0.08).toFloat(),
+                        2 * radius - (radius * 0.08).toFloat(),
+                        2 * radius - (radius * 0.08).toFloat()
+                    ), 180F, mSweepAngle.toFloat(), false, mPaint!!
+                )
+                mSweepAngle++
+                if (mSweepAngle >= 360) isOddNumber = false
+            } else {
+                canvas.drawArc(
+                    RectF(
+                        (radius * 0.08).toFloat(),
+                        (radius * 0.08).toFloat(),
+                        2 * radius - (radius * 0.08).toFloat(),
+                        2 * radius - (radius * 0.08).toFloat()
+                    ), 180F, (-mSweepAngle).toFloat(), false, mPaint!!
+                )
+                mSweepAngle--
+                if (mSweepAngle == 0) isOddNumber = true
+            }
+            this.postInvalidateDelayed(5)
+        }
+    }
+
+    private fun drawTextTip(canvas: Canvas, tipText: String) {
+        mPaint?.strokeWidth = 2F
+        mPaint?.style = Paint.Style.FILL
+        mPaint?.isAntiAlias = true
+        mPaint?.textSize = tipTextSize
+        mPaint?.color = tipTextColor
+        
+        
+        mPaint?.textAlign = Paint.Align.CENTER
+        val xCenter: Int = measuredHeight / 2
+        val yBaseLine: Float =
+            ((measuredHeight - mPaint?.fontMetrics!!.bottom + mPaint?.fontMetrics!!.top) / 2
+                    - mPaint?.fontMetrics!!.top)
+        canvas.drawText(tipText, xCenter.toFloat(), yBaseLine, mPaint!!)
+    }
+
+    fun setMode(model: Int) {
+        isRecordVideo = model == MODEL_VIDEO
+        this.invalidate()
+    }
+
+    companion object {
+        
+        private const val STATE_DOING = 0
+        
+        private const val  STATE_DONE = 1
+        
+        private const val  STATE_UNDONE = 2
+        private const val  NONE = -1
+
+        private const val MODEL_PICTURE = 0
+        private const val MODEL_VIDEO = 1
+    }
+}

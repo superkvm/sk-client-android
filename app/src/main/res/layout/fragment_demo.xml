@@ -1,0 +1,352 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.constraintlayout.widget.ConstraintLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <FrameLayout
+        android:id="@+id/cameraViewContainer"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:background="@color/black"
+        android:foreground="@drawable/fg_preview_border"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent" />
+
+    <TextView
+        android:id="@+id/connectTipTv"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:gravity="center"
+        android:text="Please insert or connect your KVM to USB"
+        android:textColor="@android:color/white"
+        android:textSize="16sp"
+        android:visibility="visible"
+        app:layout_constraintBottom_toBottomOf="@+id/cameraViewContainer"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="@+id/cameraViewContainer" />
+
+    <TextView
+        android:id="@+id/frameRateTv"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginEnd="10dp"
+        android:gravity="end"
+        android:textAlignment="viewEnd"
+        android:textColor="#FF00FF00"
+        android:textSize="10sp"
+        app:layout_constraintBottom_toBottomOf="@+id/cameraViewContainer"
+        app:layout_constraintEnd_toEndOf="@+id/cameraViewContainer"
+        app:layout_constraintTop_toTopOf="@+id/cameraViewContainer"
+        tools:text="1920x1080 · 30 fps" />
+
+    
+    <View
+        android:id="@+id/menuDismissOverlay"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:background="@android:color/transparent"
+        android:clickable="true"
+        android:focusable="true"
+        android:visibility="gone"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent" />
+
+    <ImageButton
+        android:id="@+id/settingsBtn"
+        android:layout_width="40dp"
+        android:layout_height="40dp"
+        android:layout_marginStart="0dp"
+        android:background="#AA000000"
+        android:padding="8dp"
+        android:scaleType="centerInside"
+        android:src="@drawable/settings"
+        app:layout_constraintBottom_toBottomOf="@id/cameraViewContainer"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="@id/cameraViewContainer" />
+
+    <ImageButton
+        android:id="@+id/keyboardBtn"
+        android:layout_width="40dp"
+        android:layout_height="40dp"
+        android:layout_marginEnd="0dp"
+        android:background="#AA000000"
+        android:padding="8dp"
+        android:scaleType="centerInside"
+        android:src="@drawable/keyboard"
+        app:layout_constraintBottom_toBottomOf="@id/cameraViewContainer"
+        app:layout_constraintEnd_toEndOf="@id/cameraViewContainer"
+        app:layout_constraintTop_toTopOf="@id/cameraViewContainer" />
+
+    
+    <FrameLayout
+        android:id="@+id/sideKeyboardPanel"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:padding="6dp"
+        android:visibility="gone"
+        android:background="@android:color/transparent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintBottom_toBottomOf="@id/cameraViewContainer"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintTop_toTopOf="@id/cameraViewContainer">
+
+        <LinearLayout
+            android:id="@+id/keyboardCard"
+            android:layout_width="320dp"
+            android:layout_height="wrap_content"
+            android:background="#22000000"
+            android:orientation="vertical"
+            android:padding="6dp"
+            android:layout_gravity="bottom|center_horizontal">
+
+            <LinearLayout
+            android:id="@+id/keyboardKeysContainer"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical" />
+        </LinearLayout>
+    </FrameLayout>
+
+    <LinearLayout
+        android:id="@+id/deviceMenuPanel"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="0dp"
+        android:elevation="6dp"
+        android:orientation="horizontal"
+        android:visibility="gone"
+        app:layout_constraintBottom_toBottomOf="@id/cameraViewContainer"
+        app:layout_constraintHorizontal_bias="0"
+        app:layout_constraintStart_toEndOf="@id/settingsBtn"
+        app:layout_constraintTop_toTopOf="@id/cameraViewContainer">
+
+        <LinearLayout
+            android:id="@+id/menuLevelOneContainer"
+            android:layout_width="150dp"
+            android:layout_height="wrap_content"
+            android:background="#CCBDBDBD"
+            android:orientation="vertical">
+
+            <TextView
+                android:id="@+id/menuPasteTv"
+                android:layout_width="match_parent"
+                android:layout_height="56dp"
+                android:drawablePadding="8dp"
+                android:gravity="center_vertical"
+                android:paddingHorizontal="12dp"
+                android:text="Paste"
+                android:textColor="#000000"
+                android:textSize="14sp"
+                android:textStyle="bold" />
+
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="1dp"
+                android:background="#55FFFFFF" />
+
+            <TextView
+                android:id="@+id/menuMouseJitterTv"
+                android:layout_width="match_parent"
+                android:layout_height="56dp"
+                android:drawablePadding="8dp"
+                android:gravity="center_vertical"
+                android:paddingHorizontal="12dp"
+                android:text="Mouse unsleep"
+                android:textColor="#000000"
+                android:textSize="14sp"
+                android:textStyle="bold" />
+
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="1dp"
+                android:background="#55FFFFFF" />
+
+            <TextView
+                android:id="@+id/menuVideoDeviceTv"
+                android:layout_width="match_parent"
+                android:layout_height="56dp"
+                android:drawablePadding="8dp"
+                android:gravity="center_vertical"
+                android:paddingHorizontal="12dp"
+                android:text="Video device"
+                android:textColor="#000000"
+                android:textSize="14sp"
+                android:textStyle="bold" />
+
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="1dp"
+                android:background="#55FFFFFF" />
+
+            <TextView
+                android:id="@+id/menuUartTv"
+                android:layout_width="match_parent"
+                android:layout_height="56dp"
+                android:drawablePadding="8dp"
+                android:gravity="center_vertical"
+                android:paddingHorizontal="12dp"
+                android:text="Uart"
+                android:textColor="#000000"
+                android:textSize="14sp"
+                android:textStyle="bold" />
+
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="1dp"
+                android:background="#55FFFFFF" />
+
+            <TextView
+                android:id="@+id/menuOperationGuideTv"
+                android:layout_width="match_parent"
+                android:layout_height="56dp"
+                android:drawablePadding="8dp"
+                android:gravity="center_vertical"
+                android:paddingHorizontal="12dp"
+                android:text="Operation guide"
+                android:textColor="#000000"
+                android:textSize="14sp"
+                android:textStyle="bold" />
+
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="1dp"
+                android:background="#55FFFFFF" />
+
+            <TextView
+                android:id="@+id/menuAboutTv"
+                android:layout_width="match_parent"
+                android:layout_height="56dp"
+                android:drawablePadding="8dp"
+                android:gravity="center_vertical"
+                android:paddingHorizontal="12dp"
+                android:text="About"
+                android:textColor="#000000"
+                android:textSize="14sp"
+                android:textStyle="bold" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/menuLevelTwoContainer"
+            android:layout_width="150dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="1dp"
+            android:background="#CCBDBDBD"
+            android:orientation="vertical">
+
+            <LinearLayout
+                android:id="@+id/deviceListContainer"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical" />
+        </LinearLayout>
+    </LinearLayout>
+
+    
+    <FrameLayout
+        android:id="@+id/longPressMenuOverlay"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:background="@android:color/transparent"
+        android:clickable="true"
+        android:focusable="true"
+        android:visibility="gone"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent">
+
+        <LinearLayout
+            android:id="@+id/longPressMenuCard"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:background="@android:color/transparent"
+            android:gravity="start"
+            android:orientation="vertical"
+            android:padding="0dp">
+
+            <TextView
+                android:id="@+id/longPressMenuLeftSingle"
+                android:layout_width="wrap_content"
+                android:layout_height="48dp"
+                android:background="#80BDBDBD"
+                android:clickable="true"
+                android:focusable="true"
+                android:gravity="start|center_vertical"
+                android:minHeight="48dp"
+                android:paddingStart="12dp"
+                android:paddingEnd="12dp"
+                android:text="Left click"
+                android:textColor="@android:color/white"
+                android:textSize="15sp" />
+
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="1dp"
+                android:background="#80FFFFFF" />
+
+            <TextView
+                android:id="@+id/longPressMenuLeftDouble"
+                android:layout_width="wrap_content"
+                android:layout_height="48dp"
+                android:background="#80BDBDBD"
+                android:clickable="true"
+                android:focusable="true"
+                android:gravity="start|center_vertical"
+                android:minHeight="48dp"
+                android:paddingStart="12dp"
+                android:paddingEnd="12dp"
+                android:text="Left double click"
+                android:textColor="@android:color/white"
+                android:textSize="15sp" />
+
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="1dp"
+                android:background="#80FFFFFF" />
+
+            <TextView
+                android:id="@+id/longPressMenuRight"
+                android:layout_width="wrap_content"
+                android:layout_height="48dp"
+                android:background="#80BDBDBD"
+                android:clickable="true"
+                android:focusable="true"
+                android:gravity="start|center_vertical"
+                android:minHeight="48dp"
+                android:paddingStart="12dp"
+                android:paddingEnd="12dp"
+                android:text="Right click"
+                android:textColor="@android:color/white"
+                android:textSize="15sp" />
+
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="1dp"
+                android:background="#80FFFFFF" />
+
+            <TextView
+                android:id="@+id/longPressMenuMiddle"
+                android:layout_width="wrap_content"
+                android:layout_height="48dp"
+                android:background="#80BDBDBD"
+                android:clickable="true"
+                android:focusable="true"
+                android:gravity="start|center_vertical"
+                android:minHeight="48dp"
+                android:paddingStart="12dp"
+                android:paddingEnd="12dp"
+                android:text="Middle click"
+                android:textColor="@android:color/white"
+                android:textSize="15sp" />
+        </LinearLayout>
+    </FrameLayout>
+
+</androidx.constraintlayout.widget.ConstraintLayout>

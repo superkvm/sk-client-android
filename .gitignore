@@ -1,0 +1,60 @@
+# Gradle
+.gradle/
+**/build/
+
+# Local machine paths (SDK, NDK, CMake) — never commit
+local.properties
+
+# Android Studio / IntelliJ
+.idea/
+*.iml
+*.ipr
+*.iws
+
+# Kotlin
+.kotlin/
+
+# NDK / CMake / native intermediates (outputs live under build/ and .cxx/)
+.externalNativeBuild/
+.cxx/
+
+# Outputs & packaging
+*.apk
+*.aab
+*.ap_
+*.dex
+
+# JVM / build artifacts
+*.class
+bin/
+gen/
+out/
+
+# Profiling & captures
+*.hprof
+captures/
+
+# Logs & temp
+*.log
+*.tmp
+*.swp
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Signing (do not commit secrets)
+*.jks
+*.keystore
+!debug.keystore
+
+# Release signing artifacts (generated locally)
+keystore/
+key-update.sh
+
+# Fastlane (if used)
+fastlane/report.xml
+fastlane/Preview.html
+fastlane/screenshots/**/*.png
+fastlane/test_output

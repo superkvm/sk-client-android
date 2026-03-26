@@ -1,0 +1,613 @@
+
+
+#define JPEG_INTERNALS
+#include "jinclude.h"
+#include "jpeglib.h"
+#include "jpegcomp.h"
+#include "jdmaster.h"
+
+
+
+
+LOCAL(boolean)
+use_merged_upsample (j_decompress_ptr cinfo)
+{
+#ifdef UPSAMPLE_MERGING_SUPPORTED
+  
+  if (cinfo->do_fancy_upsampling || cinfo->CCIR601_sampling)
+    return FALSE;
+  
+  if (cinfo->jpeg_color_space != JCS_YCbCr || cinfo->num_components != 3 ||
+      (cinfo->out_color_space != JCS_RGB &&
+      cinfo->out_color_space != JCS_RGB565 &&
+      cinfo->out_color_space != JCS_EXT_RGB &&
+      cinfo->out_color_space != JCS_EXT_RGBX &&
+      cinfo->out_color_space != JCS_EXT_BGR &&
+      cinfo->out_color_space != JCS_EXT_BGRX &&
+      cinfo->out_color_space != JCS_EXT_XBGR &&
+      cinfo->out_color_space != JCS_EXT_XRGB &&
+      cinfo->out_color_space != JCS_EXT_RGBA &&
+      cinfo->out_color_space != JCS_EXT_BGRA &&
+      cinfo->out_color_space != JCS_EXT_ABGR &&
+      cinfo->out_color_space != JCS_EXT_ARGB))
+    return FALSE;
+  if ((cinfo->out_color_space == JCS_RGB565 &&
+      cinfo->out_color_components != 3) ||
+      (cinfo->out_color_space != JCS_RGB565 &&
+      cinfo->out_color_components != rgb_pixelsize[cinfo->out_color_space]))
+    return FALSE;
+  
+  if (cinfo->comp_info[0].h_samp_factor != 2 ||
+      cinfo->comp_info[1].h_samp_factor != 1 ||
+      cinfo->comp_info[2].h_samp_factor != 1 ||
+      cinfo->comp_info[0].v_samp_factor >  2 ||
+      cinfo->comp_info[1].v_samp_factor != 1 ||
+      cinfo->comp_info[2].v_samp_factor != 1)
+    return FALSE;
+  
+  if (cinfo->comp_info[0]._DCT_scaled_size != cinfo->_min_DCT_scaled_size ||
+      cinfo->comp_info[1]._DCT_scaled_size != cinfo->_min_DCT_scaled_size ||
+      cinfo->comp_info[2]._DCT_scaled_size != cinfo->_min_DCT_scaled_size)
+    return FALSE;
+  
+  return TRUE;                  
+#else
+  return FALSE;
+#endif
+}
+
+
+
+
+#if JPEG_LIB_VERSION >= 80
+GLOBAL(void)
+#else
+LOCAL(void)
+#endif
+jpeg_core_output_dimensions (j_decompress_ptr cinfo)
+
+{
+#ifdef IDCT_SCALING_SUPPORTED
+  int ci;
+  jpeg_component_info *compptr;
+
+  
+  if (cinfo->scale_num * DCTSIZE <= cinfo->scale_denom) {
+    
+    cinfo->output_width = (JDIMENSION)
+      jdiv_round_up((long) cinfo->image_width, (long) DCTSIZE);
+    cinfo->output_height = (JDIMENSION)
+      jdiv_round_up((long) cinfo->image_height, (long) DCTSIZE);
+    cinfo->_min_DCT_h_scaled_size = 1;
+    cinfo->_min_DCT_v_scaled_size = 1;
+  } else if (cinfo->scale_num * DCTSIZE <= cinfo->scale_denom * 2) {
+    
+    cinfo->output_width = (JDIMENSION)
+      jdiv_round_up((long) cinfo->image_width * 2L, (long) DCTSIZE);
+    cinfo->output_height = (JDIMENSION)
+      jdiv_round_up((long) cinfo->image_height * 2L, (long) DCTSIZE);
+    cinfo->_min_DCT_h_scaled_size = 2;
+    cinfo->_min_DCT_v_scaled_size = 2;
+  } else if (cinfo->scale_num * DCTSIZE <= cinfo->scale_denom * 3) {
+    
+    cinfo->output_width = (JDIMENSION)
+      jdiv_round_up((long) cinfo->image_width * 3L, (long) DCTSIZE);
+    cinfo->output_height = (JDIMENSION)
+      jdiv_round_up((long) cinfo->image_height * 3L, (long) DCTSIZE);
+    cinfo->_min_DCT_h_scaled_size = 3;
+    cinfo->_min_DCT_v_scaled_size = 3;
+  } else if (cinfo->scale_num * DCTSIZE <= cinfo->scale_denom * 4) {
+    
+    cinfo->output_width = (JDIMENSION)
+      jdiv_round_up((long) cinfo->image_width * 4L, (long) DCTSIZE);
+    cinfo->output_height = (JDIMENSION)
+      jdiv_round_up((long) cinfo->image_height * 4L, (long) DCTSIZE);
+    cinfo->_min_DCT_h_scaled_size = 4;
+    cinfo->_min_DCT_v_scaled_size = 4;
+  } else if (cinfo->scale_num * DCTSIZE <= cinfo->scale_denom * 5) {
+    
+    cinfo->output_width = (JDIMENSION)
+      jdiv_round_up((long) cinfo->image_width * 5L, (long) DCTSIZE);
+    cinfo->output_height = (JDIMENSION)
+      jdiv_round_up((long) cinfo->image_height * 5L, (long) DCTSIZE);
+    cinfo->_min_DCT_h_scaled_size = 5;
+    cinfo->_min_DCT_v_scaled_size = 5;
+  } else if (cinfo->scale_num * DCTSIZE <= cinfo->scale_denom * 6) {
+    
+    cinfo->output_width = (JDIMENSION)
+      jdiv_round_up((long) cinfo->image_width * 6L, (long) DCTSIZE);
+    cinfo->output_height = (JDIMENSION)
+      jdiv_round_up((long) cinfo->image_height * 6L, (long) DCTSIZE);
+    cinfo->_min_DCT_h_scaled_size = 6;
+    cinfo->_min_DCT_v_scaled_size = 6;
+  } else if (cinfo->scale_num * DCTSIZE <= cinfo->scale_denom * 7) {
+    
+    cinfo->output_width = (JDIMENSION)
+      jdiv_round_up((long) cinfo->image_width * 7L, (long) DCTSIZE);
+    cinfo->output_height = (JDIMENSION)
+      jdiv_round_up((long) cinfo->image_height * 7L, (long) DCTSIZE);
+    cinfo->_min_DCT_h_scaled_size = 7;
+    cinfo->_min_DCT_v_scaled_size = 7;
+  } else if (cinfo->scale_num * DCTSIZE <= cinfo->scale_denom * 8) {
+    
+    cinfo->output_width = (JDIMENSION)
+      jdiv_round_up((long) cinfo->image_width * 8L, (long) DCTSIZE);
+    cinfo->output_height = (JDIMENSION)
+      jdiv_round_up((long) cinfo->image_height * 8L, (long) DCTSIZE);
+    cinfo->_min_DCT_h_scaled_size = 8;
+    cinfo->_min_DCT_v_scaled_size = 8;
+  } else if (cinfo->scale_num * DCTSIZE <= cinfo->scale_denom * 9) {
+    
+    cinfo->output_width = (JDIMENSION)
+      jdiv_round_up((long) cinfo->image_width * 9L, (long) DCTSIZE);
+    cinfo->output_height = (JDIMENSION)
+      jdiv_round_up((long) cinfo->image_height * 9L, (long) DCTSIZE);
+    cinfo->_min_DCT_h_scaled_size = 9;
+    cinfo->_min_DCT_v_scaled_size = 9;
+  } else if (cinfo->scale_num * DCTSIZE <= cinfo->scale_denom * 10) {
+    
+    cinfo->output_width = (JDIMENSION)
+      jdiv_round_up((long) cinfo->image_width * 10L, (long) DCTSIZE);
+    cinfo->output_height = (JDIMENSION)
+      jdiv_round_up((long) cinfo->image_height * 10L, (long) DCTSIZE);
+    cinfo->_min_DCT_h_scaled_size = 10;
+    cinfo->_min_DCT_v_scaled_size = 10;
+  } else if (cinfo->scale_num * DCTSIZE <= cinfo->scale_denom * 11) {
+    
+    cinfo->output_width = (JDIMENSION)
+      jdiv_round_up((long) cinfo->image_width * 11L, (long) DCTSIZE);
+    cinfo->output_height = (JDIMENSION)
+      jdiv_round_up((long) cinfo->image_height * 11L, (long) DCTSIZE);
+    cinfo->_min_DCT_h_scaled_size = 11;
+    cinfo->_min_DCT_v_scaled_size = 11;
+  } else if (cinfo->scale_num * DCTSIZE <= cinfo->scale_denom * 12) {
+    
+    cinfo->output_width = (JDIMENSION)
+      jdiv_round_up((long) cinfo->image_width * 12L, (long) DCTSIZE);
+    cinfo->output_height = (JDIMENSION)
+      jdiv_round_up((long) cinfo->image_height * 12L, (long) DCTSIZE);
+    cinfo->_min_DCT_h_scaled_size = 12;
+    cinfo->_min_DCT_v_scaled_size = 12;
+  } else if (cinfo->scale_num * DCTSIZE <= cinfo->scale_denom * 13) {
+    
+    cinfo->output_width = (JDIMENSION)
+      jdiv_round_up((long) cinfo->image_width * 13L, (long) DCTSIZE);
+    cinfo->output_height = (JDIMENSION)
+      jdiv_round_up((long) cinfo->image_height * 13L, (long) DCTSIZE);
+    cinfo->_min_DCT_h_scaled_size = 13;
+    cinfo->_min_DCT_v_scaled_size = 13;
+  } else if (cinfo->scale_num * DCTSIZE <= cinfo->scale_denom * 14) {
+    
+    cinfo->output_width = (JDIMENSION)
+      jdiv_round_up((long) cinfo->image_width * 14L, (long) DCTSIZE);
+    cinfo->output_height = (JDIMENSION)
+      jdiv_round_up((long) cinfo->image_height * 14L, (long) DCTSIZE);
+    cinfo->_min_DCT_h_scaled_size = 14;
+    cinfo->_min_DCT_v_scaled_size = 14;
+  } else if (cinfo->scale_num * DCTSIZE <= cinfo->scale_denom * 15) {
+    
+    cinfo->output_width = (JDIMENSION)
+      jdiv_round_up((long) cinfo->image_width * 15L, (long) DCTSIZE);
+    cinfo->output_height = (JDIMENSION)
+      jdiv_round_up((long) cinfo->image_height * 15L, (long) DCTSIZE);
+    cinfo->_min_DCT_h_scaled_size = 15;
+    cinfo->_min_DCT_v_scaled_size = 15;
+  } else {
+    
+    cinfo->output_width = (JDIMENSION)
+      jdiv_round_up((long) cinfo->image_width * 16L, (long) DCTSIZE);
+    cinfo->output_height = (JDIMENSION)
+      jdiv_round_up((long) cinfo->image_height * 16L, (long) DCTSIZE);
+    cinfo->_min_DCT_h_scaled_size = 16;
+    cinfo->_min_DCT_v_scaled_size = 16;
+  }
+
+  
+  for (ci = 0, compptr = cinfo->comp_info; ci < cinfo->num_components;
+       ci++, compptr++) {
+    compptr->_DCT_h_scaled_size = cinfo->_min_DCT_h_scaled_size;
+    compptr->_DCT_v_scaled_size = cinfo->_min_DCT_v_scaled_size;
+  }
+
+#else 
+
+  
+  cinfo->output_width = cinfo->image_width;
+  cinfo->output_height = cinfo->image_height;
+  
+
+#endif 
+}
+
+
+
+
+GLOBAL(void)
+jpeg_calc_output_dimensions (j_decompress_ptr cinfo)
+
+{
+#ifdef IDCT_SCALING_SUPPORTED
+  int ci;
+  jpeg_component_info *compptr;
+#endif
+
+  
+  if (cinfo->global_state != DSTATE_READY)
+    ERREXIT1(cinfo, JERR_BAD_STATE, cinfo->global_state);
+
+  
+  jpeg_core_output_dimensions(cinfo);
+
+#ifdef IDCT_SCALING_SUPPORTED
+
+  
+  for (ci = 0, compptr = cinfo->comp_info; ci < cinfo->num_components;
+       ci++, compptr++) {
+    int ssize = cinfo->_min_DCT_scaled_size;
+    while (ssize < DCTSIZE &&
+           ((cinfo->max_h_samp_factor * cinfo->_min_DCT_scaled_size) %
+            (compptr->h_samp_factor * ssize * 2) == 0) &&
+           ((cinfo->max_v_samp_factor * cinfo->_min_DCT_scaled_size) %
+            (compptr->v_samp_factor * ssize * 2) == 0)) {
+      ssize = ssize * 2;
+    }
+#if JPEG_LIB_VERSION >= 70
+    compptr->DCT_h_scaled_size = compptr->DCT_v_scaled_size = ssize;
+#else
+    compptr->DCT_scaled_size = ssize;
+#endif
+  }
+
+  
+  for (ci = 0, compptr = cinfo->comp_info; ci < cinfo->num_components;
+       ci++, compptr++) {
+    
+    compptr->downsampled_width = (JDIMENSION)
+      jdiv_round_up((long) cinfo->image_width *
+                    (long) (compptr->h_samp_factor * compptr->_DCT_scaled_size),
+                    (long) (cinfo->max_h_samp_factor * DCTSIZE));
+    compptr->downsampled_height = (JDIMENSION)
+      jdiv_round_up((long) cinfo->image_height *
+                    (long) (compptr->v_samp_factor * compptr->_DCT_scaled_size),
+                    (long) (cinfo->max_v_samp_factor * DCTSIZE));
+  }
+
+#else 
+
+  
+  cinfo->output_width = cinfo->image_width;
+  cinfo->output_height = cinfo->image_height;
+  
+
+#endif 
+
+  
+  
+  switch (cinfo->out_color_space) {
+  case JCS_GRAYSCALE:
+    cinfo->out_color_components = 1;
+    break;
+  case JCS_RGB:
+  case JCS_EXT_RGB:
+  case JCS_EXT_RGBX:
+  case JCS_EXT_BGR:
+  case JCS_EXT_BGRX:
+  case JCS_EXT_XBGR:
+  case JCS_EXT_XRGB:
+  case JCS_EXT_RGBA:
+  case JCS_EXT_BGRA:
+  case JCS_EXT_ABGR:
+  case JCS_EXT_ARGB:
+    cinfo->out_color_components = rgb_pixelsize[cinfo->out_color_space];
+    break;
+  case JCS_YCbCr:
+  case JCS_RGB565:
+    cinfo->out_color_components = 3;
+    break;
+  case JCS_CMYK:
+  case JCS_YCCK:
+    cinfo->out_color_components = 4;
+    break;
+  default:                      
+    cinfo->out_color_components = cinfo->num_components;
+    break;
+  }
+  cinfo->output_components = (cinfo->quantize_colors ? 1 :
+                              cinfo->out_color_components);
+
+  
+  if (use_merged_upsample(cinfo))
+    cinfo->rec_outbuf_height = cinfo->max_v_samp_factor;
+  else
+    cinfo->rec_outbuf_height = 1;
+}
+
+
+
+
+LOCAL(void)
+prepare_range_limit_table (j_decompress_ptr cinfo)
+
+{
+  JSAMPLE *table;
+  int i;
+
+  table = (JSAMPLE *)
+    (*cinfo->mem->alloc_small) ((j_common_ptr) cinfo, JPOOL_IMAGE,
+                (5 * (MAXJSAMPLE+1) + CENTERJSAMPLE) * sizeof(JSAMPLE));
+  table += (MAXJSAMPLE+1);      
+  cinfo->sample_range_limit = table;
+  
+  MEMZERO(table - (MAXJSAMPLE+1), (MAXJSAMPLE+1) * sizeof(JSAMPLE));
+  
+  for (i = 0; i <= MAXJSAMPLE; i++)
+    table[i] = (JSAMPLE) i;
+  table += CENTERJSAMPLE;       
+  
+  for (i = CENTERJSAMPLE; i < 2*(MAXJSAMPLE+1); i++)
+    table[i] = MAXJSAMPLE;
+  
+  MEMZERO(table + (2 * (MAXJSAMPLE+1)),
+          (2 * (MAXJSAMPLE+1) - CENTERJSAMPLE) * sizeof(JSAMPLE));
+  MEMCOPY(table + (4 * (MAXJSAMPLE+1) - CENTERJSAMPLE),
+          cinfo->sample_range_limit, CENTERJSAMPLE * sizeof(JSAMPLE));
+}
+
+
+
+
+LOCAL(void)
+master_selection (j_decompress_ptr cinfo)
+{
+  my_master_ptr master = (my_master_ptr) cinfo->master;
+  boolean use_c_buffer;
+  long samplesperrow;
+  JDIMENSION jd_samplesperrow;
+
+  
+  jpeg_calc_output_dimensions(cinfo);
+  prepare_range_limit_table(cinfo);
+
+  
+  samplesperrow = (long) cinfo->output_width * (long) cinfo->out_color_components;
+  jd_samplesperrow = (JDIMENSION) samplesperrow;
+  if ((long) jd_samplesperrow != samplesperrow)
+    ERREXIT(cinfo, JERR_WIDTH_OVERFLOW);
+
+  
+  master->pass_number = 0;
+  master->using_merged_upsample = use_merged_upsample(cinfo);
+
+  
+  master->quantizer_1pass = NULL;
+  master->quantizer_2pass = NULL;
+  
+  if (! cinfo->quantize_colors || ! cinfo->buffered_image) {
+    cinfo->enable_1pass_quant = FALSE;
+    cinfo->enable_external_quant = FALSE;
+    cinfo->enable_2pass_quant = FALSE;
+  }
+  if (cinfo->quantize_colors) {
+    if (cinfo->raw_data_out)
+      ERREXIT(cinfo, JERR_NOTIMPL);
+    
+    if (cinfo->out_color_components != 3) {
+      cinfo->enable_1pass_quant = TRUE;
+      cinfo->enable_external_quant = FALSE;
+      cinfo->enable_2pass_quant = FALSE;
+      cinfo->colormap = NULL;
+    } else if (cinfo->colormap != NULL) {
+      cinfo->enable_external_quant = TRUE;
+    } else if (cinfo->two_pass_quantize) {
+      cinfo->enable_2pass_quant = TRUE;
+    } else {
+      cinfo->enable_1pass_quant = TRUE;
+    }
+
+    if (cinfo->enable_1pass_quant) {
+#ifdef QUANT_1PASS_SUPPORTED
+      jinit_1pass_quantizer(cinfo);
+      master->quantizer_1pass = cinfo->cquantize;
+#else
+      ERREXIT(cinfo, JERR_NOT_COMPILED);
+#endif
+    }
+
+    
+    if (cinfo->enable_2pass_quant || cinfo->enable_external_quant) {
+#ifdef QUANT_2PASS_SUPPORTED
+      jinit_2pass_quantizer(cinfo);
+      master->quantizer_2pass = cinfo->cquantize;
+#else
+      ERREXIT(cinfo, JERR_NOT_COMPILED);
+#endif
+    }
+    
+  }
+
+  
+  if (! cinfo->raw_data_out) {
+    if (master->using_merged_upsample) {
+#ifdef UPSAMPLE_MERGING_SUPPORTED
+      jinit_merged_upsampler(cinfo); 
+#else
+      ERREXIT(cinfo, JERR_NOT_COMPILED);
+#endif
+    } else {
+      jinit_color_deconverter(cinfo);
+      jinit_upsampler(cinfo);
+    }
+    jinit_d_post_controller(cinfo, cinfo->enable_2pass_quant);
+  }
+  
+  jinit_inverse_dct(cinfo);
+  
+  if (cinfo->arith_code) {
+#ifdef D_ARITH_CODING_SUPPORTED
+    jinit_arith_decoder(cinfo);
+#else
+    ERREXIT(cinfo, JERR_ARITH_NOTIMPL);
+#endif
+  } else {
+    if (cinfo->progressive_mode) {
+#ifdef D_PROGRESSIVE_SUPPORTED
+      jinit_phuff_decoder(cinfo);
+#else
+      ERREXIT(cinfo, JERR_NOT_COMPILED);
+#endif
+    } else
+      jinit_huff_decoder(cinfo);
+  }
+
+  
+  use_c_buffer = cinfo->inputctl->has_multiple_scans || cinfo->buffered_image;
+  jinit_d_coef_controller(cinfo, use_c_buffer);
+
+  if (! cinfo->raw_data_out)
+    jinit_d_main_controller(cinfo, FALSE );
+
+  
+  (*cinfo->mem->realize_virt_arrays) ((j_common_ptr) cinfo);
+
+  
+  (*cinfo->inputctl->start_input_pass) (cinfo);
+
+  
+  cinfo->master->first_iMCU_col = 0;
+  cinfo->master->last_iMCU_col = cinfo->MCUs_per_row - 1;
+
+#ifdef D_MULTISCAN_FILES_SUPPORTED
+  
+  if (cinfo->progress != NULL && ! cinfo->buffered_image &&
+      cinfo->inputctl->has_multiple_scans) {
+    int nscans;
+    
+    if (cinfo->progressive_mode) {
+      
+      nscans = 2 + 3 * cinfo->num_components;
+    } else {
+      
+      nscans = cinfo->num_components;
+    }
+    cinfo->progress->pass_counter = 0L;
+    cinfo->progress->pass_limit = (long) cinfo->total_iMCU_rows * nscans;
+    cinfo->progress->completed_passes = 0;
+    cinfo->progress->total_passes = (cinfo->enable_2pass_quant ? 3 : 2);
+    
+    master->pass_number++;
+  }
+#endif 
+}
+
+
+
+
+METHODDEF(void)
+prepare_for_output_pass (j_decompress_ptr cinfo)
+{
+  my_master_ptr master = (my_master_ptr) cinfo->master;
+
+  if (master->pub.is_dummy_pass) {
+#ifdef QUANT_2PASS_SUPPORTED
+    
+    master->pub.is_dummy_pass = FALSE;
+    (*cinfo->cquantize->start_pass) (cinfo, FALSE);
+    (*cinfo->post->start_pass) (cinfo, JBUF_CRANK_DEST);
+    (*cinfo->main->start_pass) (cinfo, JBUF_CRANK_DEST);
+#else
+    ERREXIT(cinfo, JERR_NOT_COMPILED);
+#endif 
+  } else {
+    if (cinfo->quantize_colors && cinfo->colormap == NULL) {
+      
+      if (cinfo->two_pass_quantize && cinfo->enable_2pass_quant) {
+        cinfo->cquantize = master->quantizer_2pass;
+        master->pub.is_dummy_pass = TRUE;
+      } else if (cinfo->enable_1pass_quant) {
+        cinfo->cquantize = master->quantizer_1pass;
+      } else {
+        ERREXIT(cinfo, JERR_MODE_CHANGE);
+      }
+    }
+    (*cinfo->idct->start_pass) (cinfo);
+    (*cinfo->coef->start_output_pass) (cinfo);
+    if (! cinfo->raw_data_out) {
+      if (! master->using_merged_upsample)
+        (*cinfo->cconvert->start_pass) (cinfo);
+      (*cinfo->upsample->start_pass) (cinfo);
+      if (cinfo->quantize_colors)
+        (*cinfo->cquantize->start_pass) (cinfo, master->pub.is_dummy_pass);
+      (*cinfo->post->start_pass) (cinfo,
+            (master->pub.is_dummy_pass ? JBUF_SAVE_AND_PASS : JBUF_PASS_THRU));
+      (*cinfo->main->start_pass) (cinfo, JBUF_PASS_THRU);
+    }
+  }
+
+  
+  if (cinfo->progress != NULL) {
+    cinfo->progress->completed_passes = master->pass_number;
+    cinfo->progress->total_passes = master->pass_number +
+                                    (master->pub.is_dummy_pass ? 2 : 1);
+    
+    if (cinfo->buffered_image && ! cinfo->inputctl->eoi_reached) {
+      cinfo->progress->total_passes += (cinfo->enable_2pass_quant ? 2 : 1);
+    }
+  }
+}
+
+
+
+
+METHODDEF(void)
+finish_output_pass (j_decompress_ptr cinfo)
+{
+  my_master_ptr master = (my_master_ptr) cinfo->master;
+
+  if (cinfo->quantize_colors)
+    (*cinfo->cquantize->finish_pass) (cinfo);
+  master->pass_number++;
+}
+
+
+#ifdef D_MULTISCAN_FILES_SUPPORTED
+
+
+
+GLOBAL(void)
+jpeg_new_colormap (j_decompress_ptr cinfo)
+{
+  my_master_ptr master = (my_master_ptr) cinfo->master;
+
+  
+  if (cinfo->global_state != DSTATE_BUFIMAGE)
+    ERREXIT1(cinfo, JERR_BAD_STATE, cinfo->global_state);
+
+  if (cinfo->quantize_colors && cinfo->enable_external_quant &&
+      cinfo->colormap != NULL) {
+    
+    cinfo->cquantize = master->quantizer_2pass;
+    
+    (*cinfo->cquantize->new_color_map) (cinfo);
+    master->pub.is_dummy_pass = FALSE; 
+  } else
+    ERREXIT(cinfo, JERR_MODE_CHANGE);
+}
+
+#endif 
+
+
+
+
+GLOBAL(void)
+jinit_master_decompress (j_decompress_ptr cinfo)
+{
+  my_master_ptr master = (my_master_ptr) cinfo->master;
+
+  master->pub.prepare_for_output_pass = prepare_for_output_pass;
+  master->pub.finish_output_pass = finish_output_pass;
+
+  master->pub.is_dummy_pass = FALSE;
+  master->pub.jinit_upsampler_no_alloc = FALSE;
+
+  master_selection(cinfo);
+}

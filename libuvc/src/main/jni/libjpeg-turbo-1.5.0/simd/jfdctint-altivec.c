@@ -1,0 +1,211 @@
+
+
+
+
+#include "jsimd_altivec.h"
+
+
+#define F_0_298 2446   
+#define F_0_390 3196   
+#define F_0_541 4433   
+#define F_0_765 6270   
+#define F_0_899 7373   
+#define F_1_175 9633   
+#define F_1_501 12299  
+#define F_1_847 15137  
+#define F_1_961 16069  
+#define F_2_053 16819  
+#define F_2_562 20995  
+#define F_3_072 25172  
+
+#define CONST_BITS 13
+#define PASS1_BITS 2
+#define DESCALE_P1 (CONST_BITS - PASS1_BITS)
+#define DESCALE_P2 (CONST_BITS + PASS1_BITS)
+
+
+#define DO_FDCT_COMMON(PASS)  \
+{  \
+    \
+  \
+  tmp1312l = vec_mergeh(tmp13, tmp12);  \
+  tmp1312h = vec_mergel(tmp13, tmp12);  \
+  \
+  out2l = vec_msums(tmp1312l, pw_f130_f054, pd_descale_p##PASS);  \
+  out2h = vec_msums(tmp1312h, pw_f130_f054, pd_descale_p##PASS);  \
+  out6l = vec_msums(tmp1312l, pw_f054_mf130, pd_descale_p##PASS);  \
+  out6h = vec_msums(tmp1312h, pw_f054_mf130, pd_descale_p##PASS);  \
+  \
+  out2l = vec_sra(out2l, descale_p##PASS);  \
+  out2h = vec_sra(out2h, descale_p##PASS);  \
+  out6l = vec_sra(out6l, descale_p##PASS);  \
+  out6h = vec_sra(out6h, descale_p##PASS);  \
+  \
+  out2 = vec_pack(out2l, out2h);  \
+  out6 = vec_pack(out6l, out6h);  \
+  \
+    \
+  \
+  z3 = vec_add(tmp4, tmp6);  \
+  z4 = vec_add(tmp5, tmp7);  \
+  \
+    \
+  \
+  z34l = vec_mergeh(z3, z4);  \
+  z34h = vec_mergel(z3, z4);  \
+  \
+  z3l = vec_msums(z34l, pw_mf078_f117, pd_descale_p##PASS);  \
+  z3h = vec_msums(z34h, pw_mf078_f117, pd_descale_p##PASS);  \
+  z4l = vec_msums(z34l, pw_f117_f078, pd_descale_p##PASS);  \
+  z4h = vec_msums(z34h, pw_f117_f078, pd_descale_p##PASS);  \
+  \
+    \
+  \
+  tmp47l = vec_mergeh(tmp4, tmp7);  \
+  tmp47h = vec_mergel(tmp4, tmp7);  \
+  \
+  out7l = vec_msums(tmp47l, pw_mf060_mf089, z3l);  \
+  out7h = vec_msums(tmp47h, pw_mf060_mf089, z3h);  \
+  out1l = vec_msums(tmp47l, pw_mf089_f060, z4l);  \
+  out1h = vec_msums(tmp47h, pw_mf089_f060, z4h);  \
+  \
+  out7l = vec_sra(out7l, descale_p##PASS);  \
+  out7h = vec_sra(out7h, descale_p##PASS);  \
+  out1l = vec_sra(out1l, descale_p##PASS);  \
+  out1h = vec_sra(out1h, descale_p##PASS);  \
+  \
+  out7 = vec_pack(out7l, out7h);  \
+  out1 = vec_pack(out1l, out1h);  \
+  \
+  tmp56l = vec_mergeh(tmp5, tmp6);  \
+  tmp56h = vec_mergel(tmp5, tmp6);  \
+  \
+  out5l = vec_msums(tmp56l, pw_mf050_mf256, z4l);  \
+  out5h = vec_msums(tmp56h, pw_mf050_mf256, z4h);  \
+  out3l = vec_msums(tmp56l, pw_mf256_f050, z3l);  \
+  out3h = vec_msums(tmp56h, pw_mf256_f050, z3h);  \
+  \
+  out5l = vec_sra(out5l, descale_p##PASS);  \
+  out5h = vec_sra(out5h, descale_p##PASS);  \
+  out3l = vec_sra(out3l, descale_p##PASS);  \
+  out3h = vec_sra(out3h, descale_p##PASS);  \
+  \
+  out5 = vec_pack(out5l, out5h);  \
+  out3 = vec_pack(out3l, out3h);  \
+}
+
+#define DO_FDCT_PASS1()  \
+{  \
+    \
+  \
+  tmp10 = vec_add(tmp0, tmp3);  \
+  tmp13 = vec_sub(tmp0, tmp3);  \
+  tmp11 = vec_add(tmp1, tmp2);  \
+  tmp12 = vec_sub(tmp1, tmp2);  \
+  \
+  out0  = vec_add(tmp10, tmp11);  \
+  out0  = vec_sl(out0, pass1_bits);  \
+  out4  = vec_sub(tmp10, tmp11);  \
+  out4  = vec_sl(out4, pass1_bits);  \
+  \
+  DO_FDCT_COMMON(1);  \
+}
+
+#define DO_FDCT_PASS2()  \
+{  \
+    \
+  \
+  tmp10 = vec_add(tmp0, tmp3);  \
+  tmp13 = vec_sub(tmp0, tmp3);  \
+  tmp11 = vec_add(tmp1, tmp2);  \
+  tmp12 = vec_sub(tmp1, tmp2);  \
+  \
+  out0  = vec_add(tmp10, tmp11);  \
+  out0  = vec_add(out0, pw_descale_p2x);  \
+  out0  = vec_sra(out0, pass1_bits);  \
+  out4  = vec_sub(tmp10, tmp11);  \
+  out4  = vec_add(out4, pw_descale_p2x);  \
+  out4  = vec_sra(out4, pass1_bits);  \
+  \
+  DO_FDCT_COMMON(2);  \
+}
+
+
+void
+jsimd_fdct_islow_altivec (DCTELEM *data)
+{
+  __vector short row0, row1, row2, row3, row4, row5, row6, row7,
+    col0, col1, col2, col3, col4, col5, col6, col7,
+    tmp0, tmp1, tmp2, tmp3, tmp4, tmp5, tmp6, tmp7, tmp10, tmp11, tmp12, tmp13,
+    tmp47l, tmp47h, tmp56l, tmp56h, tmp1312l, tmp1312h,
+    z3, z4, z34l, z34h,
+    out0, out1, out2, out3, out4, out5, out6, out7;
+  __vector int z3l, z3h, z4l, z4h,
+    out1l, out1h, out2l, out2h, out3l, out3h, out5l, out5h, out6l, out6h,
+    out7l, out7h;
+
+  
+  __vector short
+    pw_f130_f054 = { __4X2(F_0_541 + F_0_765, F_0_541) },
+    pw_f054_mf130 = { __4X2(F_0_541, F_0_541 - F_1_847) },
+    pw_mf078_f117 = { __4X2(F_1_175 - F_1_961, F_1_175) },
+    pw_f117_f078 = { __4X2(F_1_175, F_1_175 - F_0_390) },
+    pw_mf060_mf089 = { __4X2(F_0_298 - F_0_899, -F_0_899) },
+    pw_mf089_f060 = { __4X2(-F_0_899, F_1_501 - F_0_899) },
+    pw_mf050_mf256 = { __4X2(F_2_053 - F_2_562, -F_2_562) },
+    pw_mf256_f050 = { __4X2(-F_2_562, F_3_072 - F_2_562) },
+    pw_descale_p2x = { __8X(1 << (PASS1_BITS - 1)) };
+  __vector unsigned short pass1_bits = { __8X(PASS1_BITS) };
+  __vector int pd_descale_p1 = { __4X(1 << (DESCALE_P1 - 1)) },
+    pd_descale_p2 = { __4X(1 << (DESCALE_P2 - 1)) };
+  __vector unsigned int descale_p1 = { __4X(DESCALE_P1) },
+    descale_p2 = { __4X(DESCALE_P2) };
+
+  
+
+  row0 = vec_ld(0, data);
+  row1 = vec_ld(16, data);
+  row2 = vec_ld(32, data);
+  row3 = vec_ld(48, data);
+  row4 = vec_ld(64, data);
+  row5 = vec_ld(80, data);
+  row6 = vec_ld(96, data);
+  row7 = vec_ld(112, data);
+
+  TRANSPOSE(row, col);
+
+  tmp0 = vec_add(col0, col7);
+  tmp7 = vec_sub(col0, col7);
+  tmp1 = vec_add(col1, col6);
+  tmp6 = vec_sub(col1, col6);
+  tmp2 = vec_add(col2, col5);
+  tmp5 = vec_sub(col2, col5);
+  tmp3 = vec_add(col3, col4);
+  tmp4 = vec_sub(col3, col4);
+
+  DO_FDCT_PASS1();
+
+  
+
+  TRANSPOSE(out, row);
+
+  tmp0 = vec_add(row0, row7);
+  tmp7 = vec_sub(row0, row7);
+  tmp1 = vec_add(row1, row6);
+  tmp6 = vec_sub(row1, row6);
+  tmp2 = vec_add(row2, row5);
+  tmp5 = vec_sub(row2, row5);
+  tmp3 = vec_add(row3, row4);
+  tmp4 = vec_sub(row3, row4);
+
+  DO_FDCT_PASS2();
+
+  vec_st(out0, 0, data);
+  vec_st(out1, 16, data);
+  vec_st(out2, 32, data);
+  vec_st(out3, 48, data);
+  vec_st(out4, 64, data);
+  vec_st(out5, 80, data);
+  vec_st(out6, 96, data);
+  vec_st(out7, 112, data);
+}

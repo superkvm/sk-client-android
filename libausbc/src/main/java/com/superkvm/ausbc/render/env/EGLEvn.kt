@@ -1,0 +1,166 @@
+
+package com.superkvm.ausbc.render.env
+
+import android.opengl.*
+import android.opengl.EGLSurface
+import android.view.Surface
+import com.superkvm.ausbc.utils.Logger
+
+
+class EGLEvn {
+    private var mEglDisplay: EGLDisplay = EGL14.EGL_NO_DISPLAY
+    private var mEglSurface: EGLSurface = EGL14.EGL_NO_SURFACE
+    private var mEglContext: EGLContext = EGL14.EGL_NO_CONTEXT
+    private var mSurface: Surface? = null
+    private val configs = arrayOfNulls<EGLConfig>(1)
+
+    fun initEgl(curContext: EGLContext? = null): Boolean {
+        
+        mEglDisplay = EGL14.eglGetDisplay(EGL14.EGL_DEFAULT_DISPLAY)
+        if (mEglDisplay == EGL14.EGL_NO_DISPLAY) {
+            loggerError("Get display")
+            return false
+        }
+        
+        val version = IntArray(2)
+        if (! EGL14.eglInitialize(mEglDisplay, version, 0, version, 1)) {
+            loggerError("Init egl")
+            return false
+        }
+        
+        
+        
+        val configAttribs = intArrayOf(
+		    EGL14.EGL_RED_SIZE, 8,
+            EGL14.EGL_GREEN_SIZE, 8,
+            EGL14.EGL_BLUE_SIZE, 8,
+            EGL14.EGL_ALPHA_SIZE, 8,
+            EGL14.EGL_RENDERABLE_TYPE, EGL14.EGL_OPENGL_ES2_BIT,
+            EGL_RECORDABLE_ANDROID, 1,
+            EGL14.EGL_NONE
+        )
+        val numConfigs = IntArray(1)
+        if (! EGL14.eglChooseConfig(mEglDisplay, configAttribs, 0, configs, 0, configs.size, numConfigs, 0)) {
+            loggerError("Choose Config")
+            return false
+        }
+        
+        
+        val ctxAttribs = intArrayOf(
+            EGL14.EGL_CONTEXT_CLIENT_VERSION, 2,
+            EGL14.EGL_NONE
+        )
+        mEglContext = EGL14.eglCreateContext(mEglDisplay, configs[0], curContext ?: EGL14.EGL_NO_CONTEXT , ctxAttribs, 0)
+        if (mEglContext == EGL14.EGL_NO_CONTEXT) {
+            loggerError("Create context")
+            return false
+        }
+        
+        
+        if (! EGL14.eglMakeCurrent(mEglDisplay, EGL14.EGL_NO_SURFACE, EGL14.EGL_NO_SURFACE, mEglContext)) {
+            loggerError("Bind context and window")
+            return false
+        }
+        Logger.i(TAG, "Init EGL Success!")
+        return true
+    }
+
+    fun setupSurface(surface: Surface?, surfaceWidth: Int = 0, surfaceHeight: Int = 0) {
+        if (mEglDisplay == EGL14.EGL_NO_DISPLAY) {
+            return
+        }
+        
+        
+        mEglSurface = if (surface == null) {
+            val attributes  = intArrayOf(
+                EGL14.EGL_WIDTH, surfaceWidth,
+                EGL14.EGL_HEIGHT, surfaceHeight,
+                EGL14.EGL_NONE
+            )
+            EGL14.eglCreatePbufferSurface(mEglDisplay, configs[0], attributes , 0)
+        } else {
+            val attributes  = intArrayOf(
+                EGL14.EGL_NONE
+            )
+            EGL14.eglCreateWindowSurface(mEglDisplay, configs[0], surface, attributes , 0)
+        }
+        if (mEglSurface == EGL14.EGL_NO_SURFACE) {
+            loggerError("Create window")
+        }
+        mSurface = surface
+        Logger.i(TAG, "setupSurface Success!")
+    }
+
+    fun eglMakeCurrent() {
+        if (mEglContext == EGL14.EGL_NO_CONTEXT) {
+            return
+        }
+        if (mEglSurface == EGL14.EGL_NO_SURFACE) {
+            return
+        }
+        if (! EGL14.eglMakeCurrent(mEglDisplay, mEglSurface, mEglSurface, mEglContext)) {
+            loggerError("Bind context and window")
+        }
+    }
+
+    
+    fun eglSwapInterval(interval: Int) {
+        if (mEglDisplay == EGL14.EGL_NO_DISPLAY) {
+            return
+        }
+        if (!EGL14.eglSwapInterval(mEglDisplay, interval)) {
+            Logger.w(TAG, "eglSwapInterval($interval) failed, err=${EGL14.eglGetError()}")
+        }
+    }
+
+    fun setPresentationTime(nanoseconds: Long) {
+        if (mEglContext == EGL14.EGL_NO_CONTEXT) {
+            return
+        }
+        if (mSurface == null) {
+            return
+        }
+        
+        if (! EGLExt.eglPresentationTimeANDROID(mEglDisplay, mEglSurface, nanoseconds)) {
+            loggerError("Set Presentation time")
+        }
+    }
+
+    fun swapBuffers() {
+        if (mEglContext == EGL14.EGL_NO_CONTEXT) {
+            return
+        }
+        
+        
+        if (! EGL14.eglSwapBuffers(mEglDisplay, mEglSurface)) {
+            loggerError("Swap buffers")
+        }
+    }
+
+    fun releaseElg() {
+        if (mEglDisplay != EGL14.EGL_NO_DISPLAY) {
+            EGL14.eglMakeCurrent(mEglDisplay, EGL14.EGL_NO_SURFACE, EGL14.EGL_NO_SURFACE, EGL14.EGL_NO_CONTEXT)
+            EGL14.eglDestroySurface(mEglDisplay, mEglSurface)
+            EGL14.eglDestroyContext(mEglDisplay, mEglContext)
+            EGL14.eglReleaseThread()
+            EGL14.eglTerminate(mEglDisplay)
+        }
+		mSurface?.release()
+        mEglDisplay = EGL14.EGL_NO_DISPLAY
+        mEglSurface = EGL14.EGL_NO_SURFACE
+        mEglContext = EGL14.EGL_NO_CONTEXT      
+        mSurface = null
+        Logger.i(TAG, "Release EGL Success!")
+    }
+
+    private fun loggerError(msg: String) {
+        Logger.e(TAG, "$msg failed. error = ${EGL14.eglGetError()}")
+    }
+
+    fun getEGLContext(): EGLContext = EGL14.eglGetCurrentContext()
+
+    companion object {
+        private const val TAG = "EGLEvn"
+        private const val EGL_RECORDABLE_ANDROID = 0x3142
+    }
+}
